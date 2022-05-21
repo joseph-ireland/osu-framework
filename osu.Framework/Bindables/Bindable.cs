@@ -34,7 +34,7 @@ namespace osu.Framework.Bindables
         /// </summary>
         public event Action<ValueChangedEvent<T>> DefaultChanged;
 
-        private T value;
+        protected virtual T InternalValue { get; set; }
 
         private T defaultValue;
 
@@ -69,7 +69,7 @@ namespace osu.Framework.Bindables
         /// <summary>
         /// Check whether the current <see cref="Value"/> is equal to <see cref="Default"/>.
         /// </summary>
-        public virtual bool IsDefault => EqualityComparer<T>.Default.Equals(value, Default);
+        public virtual bool IsDefault => EqualityComparer<T>.Default.Equals(InternalValue, Default);
 
         /// <summary>
         /// Revert the current <see cref="Value"/> to the defined <see cref="Default"/>.
@@ -81,7 +81,7 @@ namespace osu.Framework.Bindables
         /// </summary>
         public virtual T Value
         {
-            get => value;
+            get => InternalValue;
             set
             {
                 // intentionally don't have throwIfLeased() here.
@@ -90,15 +90,15 @@ namespace osu.Framework.Bindables
                 if (Disabled)
                     throw new InvalidOperationException($"Can not set value to \"{value.ToString()}\" as bindable is disabled.");
 
-                if (EqualityComparer<T>.Default.Equals(this.value, value)) return;
+                if (EqualityComparer<T>.Default.Equals(InternalValue, value)) return;
 
-                SetValue(this.value, value);
+                SetValue(InternalValue, value);
             }
         }
 
         internal void SetValue(T previousValue, T value, bool bypassChecks = false, Bindable<T> source = null)
         {
-            this.value = value;
+            InternalValue = value;
             TriggerValueChange(previousValue, source ?? this, true, bypassChecks);
         }
 
@@ -133,11 +133,9 @@ namespace osu.Framework.Bindables
         private WeakReference<Bindable<T>> weakReference => weakReferenceInstance ??= new WeakReference<Bindable<T>>(this);
 
         /// <summary>
-        /// Creates a new bindable instance. This is used for deserialization of bindables.
+        /// Creates a new bindable instance.
         /// </summary>
-        [UsedImplicitly]
-        private Bindable()
-            : this(default)
+        public Bindable()
         {
         }
 
@@ -145,9 +143,9 @@ namespace osu.Framework.Bindables
         /// Creates a new bindable instance initialised with a default value.
         /// </summary>
         /// <param name="defaultValue">The initial and default value for this bindable.</param>
-        public Bindable(T defaultValue = default)
+        public Bindable(T defaultValue)
         {
-            value = Default = defaultValue;
+            InternalValue = Default = defaultValue;
         }
 
         protected LockedWeakList<Bindable<T>> Bindings { get; private set; }
@@ -266,14 +264,14 @@ namespace osu.Framework.Bindables
         /// </summary>
         public virtual void TriggerChange()
         {
-            TriggerValueChange(value, this, false);
+            TriggerValueChange(InternalValue, this, false);
             TriggerDisabledChange(this, false);
         }
 
         protected void TriggerValueChange(T previousValue, Bindable<T> source, bool propagateToBindings = true, bool bypassChecks = false)
         {
             // check a bound bindable hasn't changed the value again (it will fire its own event)
-            T beforePropagation = value;
+            T beforePropagation = InternalValue;
 
             if (propagateToBindings && Bindings != null)
             {
@@ -281,12 +279,12 @@ namespace osu.Framework.Bindables
                 {
                     if (b == source) continue;
 
-                    b.SetValue(previousValue, value, bypassChecks, this);
+                    b.SetValue(previousValue, InternalValue, bypassChecks, this);
                 }
             }
 
-            if (EqualityComparer<T>.Default.Equals(beforePropagation, value))
-                ValueChanged?.Invoke(new ValueChangedEvent<T>(previousValue, value));
+            if (EqualityComparer<T>.Default.Equals(beforePropagation, InternalValue))
+                ValueChanged?.Invoke(new ValueChangedEvent<T>(previousValue, InternalValue));
         }
 
         protected void TriggerDefaultChange(T previousValue, Bindable<T> source, bool propagateToBindings = true, bool bypassChecks = false)
@@ -377,7 +375,7 @@ namespace osu.Framework.Bindables
 
         public string Description { get; set; }
 
-        public override string ToString() => value?.ToString() ?? string.Empty;
+        public override string ToString() => InternalValue?.ToString() ?? string.Empty;
 
         /// <summary>
         /// Create an unbound clone of this bindable.
